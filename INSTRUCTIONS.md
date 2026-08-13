@@ -14,6 +14,8 @@ This update builds like Plant Water Tracker and goes into your existing gym-app 
 
 Do not uninstall version 1 first. Installing the APK built from the same GitHub repository preserves existing weigh-ins and app data. If Samsung does not offer **Update**, stop rather than uninstalling.
 
+You will know the corrected update is installed when Fit Loop uses an indigo-blue theme, shows a **V2** badge beside its name, and displays a large **Start workout** button before the exercise list.
+
 ## First version-2 workout
 
 The displayed weights are intentionally conservative starting suggestions, not tested maximums. Adjust them to match the available equipment and use controlled form. After the final set, tap **Easy +**, **Right**, or **Heavy −**. Fit Loop stores the result and changes the recommendation for the next workout. Week 3 automatically displays a 10% lighter recommendation.
