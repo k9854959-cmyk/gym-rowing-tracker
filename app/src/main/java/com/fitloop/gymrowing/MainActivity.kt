@@ -24,6 +24,7 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
+import kotlinx.coroutines.delay
 import org.json.JSONArray
 import org.json.JSONObject
 import java.text.SimpleDateFormat
@@ -34,19 +35,37 @@ data class Workout(val title:String,val subtitle:String,val exercises:List<Exerc
 data class WeightEntry(val date:Long,val kg:Double,val waist:Double?)
 
 private val teal=Color(0xFF176B69); private val bg=Color(0xFFF8F5EF); private val coral=Color(0xFFE7654B)
-private val strengthA=listOf(
+private val fullBody=listOf(
  Exercise("Goblet squat","3 × 8–10","Chest tall; knees follow toes.","Knees collapsing inward"),
  Exercise("Dumbbell bench press","3 × 8–12","Lower with control; wrists stacked.","Elbows flared straight out"),
  Exercise("One-arm dumbbell row","3 × 10 each side","Brace and pull elbow toward hip.","Twisting the torso"),
  Exercise("Romanian deadlift","3 × 8–10","Push hips back; keep weights close.","Rounding the back"),
- Exercise("Plank","3 × 20–40 sec","Squeeze glutes; ribs down.","Hips sagging")
+ Exercise("Plank","3 × 30–45 sec","Squeeze glutes; ribs down.","Hips sagging")
 )
-private val strengthB=listOf(
+private val upperBody=listOf(
+ Exercise("Dumbbell bench press","3 × 8–12","Lower with control; wrists stacked.","Elbows flared straight out"),
+ Exercise("Lat pulldown","3 × 8–12","Pull elbows toward your ribs.","Swinging backward"),
+ Exercise("Dumbbell shoulder press","3 × 8–12","Brace; press over shoulders.","Leaning far backward"),
+ Exercise("Seated cable row","3 × 10–12","Lead with elbows; pause briefly.","Shrugging shoulders"),
+ Exercise("Dumbbell lateral raise","2 × 12–15","Lift smoothly to shoulder height.","Using momentum"),
+ Exercise("Dumbbell curl","2 × 10–15","Keep elbows still.","Swinging the weight"),
+ Exercise("Triceps pushdown","2 × 10–15","Lock elbows beside your body.","Moving the shoulders")
+)
+private val lowerBody=listOf(
+ Exercise("Leg press","3 × 8–12","Keep feet planted; control depth.","Locking knees hard"),
+ Exercise("Romanian deadlift","3 × 8–10","Push hips back; keep weights close.","Rounding the back"),
  Exercise("Reverse lunge","3 × 8 each leg","Step back; keep front foot planted.","Front knee falling inward"),
- Exercise("Dumbbell overhead press","3 × 8–12","Brace; press over shoulders.","Leaning far backward"),
- Exercise("Dumbbell deadlift","3 × 6–10","Drive the floor away; stand tall.","Jerking from the floor"),
- Exercise("Bent-over row","3 × 8–12","Hold hinge; pull elbows back.","Shrugging shoulders"),
+ Exercise("Hip thrust","3 × 10–12","Finish by squeezing glutes.","Overarching the lower back"),
+ Exercise("Standing calf raise","3 × 12–15","Pause high and lower fully.","Bouncing"),
  Exercise("Farmer carry","3 × 30–45 sec","Walk tall with steady steps.","Leaning to one side")
+)
+private val coreBody=listOf(
+ Exercise("Dead bug","3 × 8 each side","Keep lower back gently down.","Rushing the movement"),
+ Exercise("Side plank","3 × 20–40 sec each","Make a straight line head to heel.","Hips dropping"),
+ Exercise("Pallof press","3 × 10 each side","Resist rotation; breathe out.","Twisting toward the cable"),
+ Exercise("Bird dog","3 × 8 each side","Reach long without rotating.","Arching the back"),
+ Exercise("Farmer carry","3 × 40 sec","Walk tall; brace naturally.","Holding your breath"),
+ Exercise("Glute bridge","3 × 12","Drive through heels; squeeze glutes.","Overarching the back")
 )
 
 class MainActivity:ComponentActivity(){ override fun onCreate(savedInstanceState:Bundle?){super.onCreate(savedInstanceState);setContent{FitLoopApp(this)}} }
@@ -59,6 +78,8 @@ class Store(context:Context){
  fun addWeight(e:WeightEntry){val a=JSONArray();(listOf(e)+weights()).take(30).forEach{a.put(JSONObject().apply{put("date",it.date);put("kg",it.kg);it.waist?.let{w->put("waist",w)}})};p.edit().putString("weights",a.toString()).apply()}
  fun logKey(w:Int,d:Int,i:Int)=p.getString("log_${w}_${d}_$i","")?:""
  fun saveLog(w:Int,d:Int,i:Int,value:String){p.edit().putString("log_${w}_${d}_$i",value).apply()}
+ fun recommendation(name:String,starter:Double)=Double.fromBits(p.getLong("rec_${name.hashCode()}",starter.toBits()))
+ fun saveRecommendation(name:String,value:Double){p.edit().putLong("rec_${name.hashCode()}",value.coerceAtLeast(0.0).toBits()).apply()}
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -80,19 +101,31 @@ class Store(context:Context){
  }
 }
 
-fun plan(week:Int):List<Workout>{val sets=if(week==3)"2 sets" else "3 sets";val rounds=when(week){1->6;2->8;else->5};val steady=when(week){1->35;2->40;else->30};return listOf(
- Workout("Strength A + easy row","$sets · then ${if(week==2)20 else 15} min easy row",strengthA,R.drawable.strength_a_guide),
- Workout("Rowing intervals","5 min warm-up · $rounds rounds: 1 min hard / 2 min easy · 5 min cool-down",listOf(Exercise("Intervals","$rounds rounds","Hard but controlled; smooth strokes.","All-out sprinting")),R.drawable.rowing_guide),
- Workout("Strength B + easy row","$sets · then ${if(week==2)20 else 15} min easy row",strengthB,R.drawable.strength_b_guide),
- Workout("Steady row","$steady minutes at conversational pace",listOf(Exercise("Steady rowing","$steady minutes","Breathe steadily; relaxed recovery.","Starting too fast")),R.drawable.rowing_guide))}
+fun plan(week:Int):List<Workout>{val phase=if(week==1)"Foundation" else if(week==2)"Progress" else "Recovery";val steady=if(week==2)40 else if(week==3)30 else 35;return listOf(
+ Workout("Full body","$phase · strength then 10–15 min easy row",fullBody,R.drawable.strength_a_guide),
+ Workout("Upper body","$phase · strength then rowing intervals",upperBody,R.drawable.strength_a_guide),
+ Workout("Lower body","$phase · strength then optional 10 min easy row",lowerBody,R.drawable.strength_b_guide),
+ Workout("Core + conditioning","$phase · core then $steady min steady row",coreBody,R.drawable.rowing_guide))}
 
 @Composable fun Today(w:Workout,week:Int,day:Int,store:Store,onGuide:(Int)->Unit,onComplete:()->Unit){LazyColumn(verticalArrangement=Arrangement.spacedBy(10.dp),contentPadding=PaddingValues(bottom=18.dp)){
- item{Card(colors=CardDefaults.cardColors(containerColor=teal),shape=RoundedCornerShape(20.dp)){Column(Modifier.fillMaxWidth().padding(18.dp)){Text("CYCLE WEEK $week · WORKOUT ${day+1}",color=Color.White.copy(.75f));Text(w.title,color=Color.White,fontWeight=FontWeight.Bold,style=MaterialTheme.typography.titleLarge);Text(w.subtitle,color=Color.White)}};Spacer(Modifier.height(4.dp));w.guide?.let{OutlinedButton(onClick={onGuide(it)},Modifier.fillMaxWidth()){Icon(Icons.Default.MenuBook,null);Spacer(Modifier.width(8.dp));Text("Open picture guide")}}}
- itemsIndexed(w.exercises){i,e->ExerciseCard(e,store.logKey(week,day,i)){store.saveLog(week,day,i,it)}}
+ item{Card(colors=CardDefaults.cardColors(containerColor=teal),shape=RoundedCornerShape(20.dp)){Column(Modifier.fillMaxWidth().padding(18.dp)){Text("CYCLE WEEK $week · WORKOUT ${day+1}",color=Color.White.copy(.75f));Text(w.title,color=Color.White,fontWeight=FontWeight.Bold,style=MaterialTheme.typography.titleLarge);Text(w.subtitle,color=Color.White)}};Spacer(Modifier.height(4.dp));GuidedTimer();w.guide?.let{OutlinedButton(onClick={onGuide(it)},Modifier.fillMaxWidth()){Icon(Icons.Default.MenuBook,null);Spacer(Modifier.width(8.dp));Text("Open picture guide")}}}
+ itemsIndexed(w.exercises){i,e->ExerciseCard(e,week,store,store.logKey(week,day,i)){store.saveLog(week,day,i,it)}}
  item{Button(onClick=onComplete,Modifier.fillMaxWidth().height(52.dp)){Icon(Icons.Default.CheckCircle,null);Spacer(Modifier.width(8.dp));Text("Finish workout")};Text("Complete all reps with 2–3 good reps left. Week 3 reduces fatigue.",Modifier.padding(8.dp),style=MaterialTheme.typography.bodySmall,color=Color.Gray)}
  }}
 
-@Composable fun ExerciseCard(e:Exercise,value:String,onChange:(String)->Unit){Card(shape=RoundedCornerShape(16.dp)){Column(Modifier.padding(14.dp)){Row{Column(Modifier.weight(1f)){Text(e.name,fontWeight=FontWeight.Bold);Text(e.target,color=teal)};Icon(Icons.Default.FitnessCenter,null,tint=coral)};Spacer(Modifier.height(7.dp));Text("Cue: ${e.cue}",style=MaterialTheme.typography.bodySmall);Text("Avoid: ${e.avoid}",style=MaterialTheme.typography.bodySmall,color=Color(0xFF9A4D3C));Spacer(Modifier.height(8.dp));OutlinedTextField(value,onChange,Modifier.fillMaxWidth(),label={Text("Weight / reps / distance")},singleLine=true)}}}
+@Composable fun ExerciseCard(e:Exercise,week:Int,store:Store,value:String,onChange:(String)->Unit){
+ val starter=starterWeight(e.name);var recommended by remember(e.name){mutableDoubleStateOf(store.recommendation(e.name,starter))};var actual by remember(value){mutableStateOf(value)}
+ Card(shape=RoundedCornerShape(16.dp)){Column(Modifier.padding(14.dp)){Row{Column(Modifier.weight(1f)){Text(e.name,fontWeight=FontWeight.Bold);Text(if(week==3)e.target.replace("3 ×","2 ×") else e.target,color=teal)};Icon(Icons.Default.FitnessCenter,null,tint=coral)}
+  if(starter>0){Spacer(Modifier.height(7.dp));Surface(color=Color(0xFFE3F2EF),shape=RoundedCornerShape(10.dp)){Column(Modifier.fillMaxWidth().padding(10.dp)){Text("RECOMMENDED WORKING WEIGHT",style=MaterialTheme.typography.labelSmall,color=teal);Text("${formatKg(if(week==3)recommended*.9 else recommended)} kg",fontWeight=FontWeight.Bold,style=MaterialTheme.typography.titleLarge);Text("Adjust once if equipment increments differ.",style=MaterialTheme.typography.bodySmall)}}}
+  Spacer(Modifier.height(7.dp));Text("Cue: ${e.cue}",style=MaterialTheme.typography.bodySmall);Text("Avoid: ${e.avoid}",style=MaterialTheme.typography.bodySmall,color=Color(0xFF9A4D3C));Spacer(Modifier.height(8.dp));OutlinedTextField(actual,{actual=it;onChange(it)},Modifier.fillMaxWidth(),label={Text(if(starter>0)"Actual kg × reps (example: 16 × 10,10,9)" else "Reps / time")},singleLine=true)
+  if(starter>0){Text("How did the final set feel?",style=MaterialTheme.typography.labelMedium,modifier=Modifier.padding(top=8.dp));Row(horizontalArrangement=Arrangement.spacedBy(5.dp)){AssistChip(onClick={recommended=nextIncrement(recommended,true);store.saveRecommendation(e.name,recommended)},label={Text("Easy +")});AssistChip(onClick={store.saveRecommendation(e.name,recommended)},label={Text("Right")});AssistChip(onClick={recommended=nextIncrement(recommended,false);store.saveRecommendation(e.name,recommended)},label={Text("Heavy −")})};Text("Easy increases next time; Right keeps it; Heavy reduces it.",style=MaterialTheme.typography.bodySmall,color=Color.Gray)}
+ }}}
+
+private fun starterWeight(name:String)=when(name){"Goblet squat"->12.0;"Dumbbell bench press"->8.0;"One-arm dumbbell row"->10.0;"Romanian deadlift"->16.0;"Lat pulldown"->25.0;"Dumbbell shoulder press"->6.0;"Seated cable row"->25.0;"Dumbbell lateral raise"->4.0;"Dumbbell curl"->6.0;"Triceps pushdown"->15.0;"Leg press"->40.0;"Reverse lunge"->8.0;"Hip thrust"->20.0;"Standing calf raise"->20.0;"Farmer carry"->12.0;else->0.0}
+private fun nextIncrement(v:Double,up:Boolean):Double=(v+(if(up)if(v<10)1.0 else 2.0 else if(v<=10)-1.0 else -2.0)).coerceAtLeast(1.0)
+private fun formatKg(v:Double)=if(v%1.0==0.0)v.toInt().toString() else "%.1f".format(v)
+
+@Composable fun GuidedTimer(){var seconds by remember{mutableIntStateOf(0)};var running by remember{mutableStateOf(false)};var label by remember{mutableStateOf("Ready")};LaunchedEffect(running,seconds){if(running&&seconds>0){delay(1000);seconds--}else if(running&&seconds==0)running=false};Card(colors=CardDefaults.cardColors(containerColor=Color.White),shape=RoundedCornerShape(16.dp),modifier=Modifier.padding(vertical=8.dp)){Column(Modifier.fillMaxWidth().padding(12.dp),horizontalAlignment=Alignment.CenterHorizontally){Text(label,fontWeight=FontWeight.Bold);Text("%02d:%02d".format(seconds/60,seconds%60),style=MaterialTheme.typography.headlineMedium,fontWeight=FontWeight.Black,color=teal);if(seconds>0)Row(horizontalArrangement=Arrangement.spacedBy(6.dp)){TextButton(onClick={running=!running}){Text(if(running)"Pause"else"Resume")};TextButton(onClick={seconds+=30}){Text("+30 sec")};TextButton(onClick={seconds=0;running=false}){Text("Skip")}}else Row(horizontalArrangement=Arrangement.spacedBy(6.dp)){AssistChip(onClick={label="Preparation";seconds=300;running=true},label={Text("5 min prep")});AssistChip(onClick={label="Rest — stay focused";seconds=90;running=true},label={Text("90 sec rest")});AssistChip(onClick={label="Cooldown — well done";seconds=300;running=true},label={Text("5 min cool")})}}}}
 
 @Composable fun PlanScreen(ws:List<Workout>,week:Int,current:Int,onOpen:(Int)->Unit,onGuide:(Int)->Unit){Column{Text("Three-week loop",fontWeight=FontWeight.Bold,style=MaterialTheme.typography.titleLarge);Text(if(week==1)"Foundation" else if(week==2)"Progress" else "Recovery",color=teal);Spacer(Modifier.height(8.dp));LazyColumn(verticalArrangement=Arrangement.spacedBy(10.dp)){itemsIndexed(ws){i,w->Card(Modifier.fillMaxWidth().clickable{onOpen(i)},colors=CardDefaults.cardColors(containerColor=if(i==current)Color(0xFFE3F2EF) else Color.White)){Row(Modifier.padding(14.dp),verticalAlignment=Alignment.CenterVertically){Text("${i+1}",style=MaterialTheme.typography.headlineSmall,fontWeight=FontWeight.Bold,color=teal);Spacer(Modifier.width(12.dp));Column(Modifier.weight(1f)){Text(w.title,fontWeight=FontWeight.Bold);Text(w.subtitle,style=MaterialTheme.typography.bodySmall)};w.guide?.let{IconButton(onClick={onGuide(it)}){Icon(Icons.Default.Image,null)}}}}}}}}
 
